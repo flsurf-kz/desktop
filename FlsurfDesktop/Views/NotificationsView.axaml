@@ -1,0 +1,28 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FlsurfDesktop.Views.NotificationsView">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+    <TextBlock Row="0" Text="{DynamicResource Loc_NotificationsTitle}"
+               FontSize="20" Margin="4"/>
+
+    <ListBox Row="1" Items="{Binding Notifications}" Margin="4">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Border BorderThickness="0,0,0,1" BorderBrush="#33000000" Padding="4">
+            <StackPanel>
+              <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+              <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+              <Button Content="{DynamicResource Loc_OpenLink}" 
+                      Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding Url}"
+                      IsEnabled="{Binding Url, Converter={StaticResource NotNullBool}}"/>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <Button Row="2" Content="{DynamicResource Loc_Refresh}" 
+            Command="{Binding ReloadCommand}" HorizontalAlignment="Right" Margin="4"/>
+  </Grid>
+</UserControl>

@@ -1,0 +1,52 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlsurfDesktop.Views.ContractDetailView"
+        Title="{DynamicResource Loc_ContractDetailTitle}" Width="600" Height="500"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="12">
+    <!-- Общая информация -->
+    <StackPanel Row="0" Spacing="6">
+      <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="Bold"/>
+      <TextBlock Text="{Binding Status}" FontStyle="Italic"/>
+      <TextBlock Text="{Binding BudgetInfo}"/>
+      <TextBlock Text="{Binding CostPerHourInfo}"/>
+      <TextBlock Text="{Binding RemainingBudgetInfo}" Foreground="DarkGreen"/>
+    </StackPanel>
+
+    <!-- Список сессий для этого контракта -->
+    <GroupBox Header="{DynamicResource Loc_WorkSessions}" Row="1" Margin="0,12,0,0">
+      <ListBox Items="{Binding WorkSessions}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Border BorderThickness="0,0,0,1" BorderBrush="#33000000" Padding="4">
+              <DockPanel>
+                <StackPanel>
+                  <TextBlock Text="{Binding StartDateLocal, StringFormat='Start: {0:yyyy-MM-dd HH:mm}'}"/>
+                  <TextBlock Text="{Binding EndDateLocal, StringFormat='End: {0:yyyy-MM-dd HH:mm}'}"/>
+                  <TextBlock Text="{Binding Status}"/>
+                </StackPanel>
+                <Button Content="{DynamicResource Loc_ViewSession}" 
+                        Command="{Binding DataContext.ViewSessionDetailCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding Id}"
+                        HorizontalAlignment="Right"/>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </GroupBox>
+
+    <!-- Комментарий (для фрилансера) -->
+    <TextBox Row="2" Text="{Binding Comment}" AcceptsReturn="True" Height="80" Margin="0,12,0,0"
+             Placeholder="{DynamicResource Loc_EnterComment}"/>
+
+    <!-- Кнопки -->
+    <StackPanel Row="3" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Content="{DynamicResource Loc_SubmitSession}" 
+              Command="{Binding SubmitSessionCommand}"
+              IsEnabled="{Binding CanSubmitSession}"/>
+      <Button Content="{DynamicResource Loc_Close}" 
+              Command="{Binding CloseCommand}"/>
+    </StackPanel>
+  </Grid>
+</Window>

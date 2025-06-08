@@ -1,0 +1,55 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FlsurfDesktop.ViewModels"
+        xmlns:views="clr-namespace:FlsurfDesktop.Views"
+        x:Class="FlsurfDesktop.Views.MainWindow"
+        Title="{DynamicResource Loc_AppTitle}" Width="1000" Height="650"
+        WindowStartupLocation="CenterScreen">
+  <Window.DataContext>
+    <vm:MainWindowViewModel/>
+  </Window.DataContext>
+
+  <!-- Трей-иконка -->
+  <Window.TrayIcons>
+    <TrayIcon Source="/Assets/tray.png">
+      <TrayIcon.Menu>
+        <ContextMenu>
+          <MenuItem Header="{DynamicResource Loc_Show}" Command="{Binding ShowWindowCommand}"/>
+          <MenuItem Header="{DynamicResource Loc_StartSession}" Command="{Binding StartSessionCommand}"/>
+          <MenuItem Header="{DynamicResource Loc_StopSession}"  Command="{Binding StopSessionCommand}"/>
+          <Separator/>
+          <MenuItem Header="{DynamicResource Loc_Exit}" Command="{Binding ExitCommand}"/>
+        </ContextMenu>
+      </TrayIcon.Menu>
+    </TrayIcon>
+  </Window.TrayIcons>
+
+  <DockPanel>
+    <!-- Верхнее меню с навигацией -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="{DynamicResource Loc_File}">
+        <MenuItem Header="{DynamicResource Loc_Settings}" 
+                  Command="{Binding OpenSettingsCommand}"/>
+        <MenuItem Header="{DynamicResource Loc_Logout}" 
+                  Command="{Binding LogoutCommand}"/>
+        <Separator/>
+        <MenuItem Header="{DynamicResource Loc_Exit}" 
+                  Command="{Binding ExitCommand}"/>
+      </MenuItem>
+      <MenuItem Header="{DynamicResource Loc_View}">
+        <MenuItem Header="{DynamicResource Loc_FreelancerDashboard}" 
+                  Command="{Binding ShowFreelancerDashboardCommand}"
+                  IsVisible="{Binding IsFreelancer}"/>
+        <MenuItem Header="{DynamicResource Loc_ClientDashboard}" 
+                  Command="{Binding ShowClientDashboardCommand}"
+                  IsVisible="{Binding IsClient}"/>
+        <MenuItem Header="{DynamicResource Loc_Notifications}" 
+                  Command="{Binding ShowNotificationsCommand}"/>
+      </MenuItem>
+    </Menu>
+
+    <!-- Основная область: тут будет подставляться нужный View -->
+    <ContentControl Content="{Binding CurrentView}"
+                    Margin="12"/>
+  </DockPanel>
+</Window>

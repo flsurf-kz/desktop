@@ -1,0 +1,22 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlsurfDesktop.Views.LoginWindow"
+        Title="{DynamicResource Loc_LoginTitle}" Width="360" Height="220"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="20" Spacing="12" HorizontalAlignment="Center">
+    <TextBlock Text="{DynamicResource Loc_LoginHeader}"
+               FontSize="18"
+               HorizontalAlignment="Center"/>
+    <TextBox Placeholder="{DynamicResource Loc_Email}" Text="{Binding Email}" Width="280"/>
+    <PasswordBox Password="{Binding Password}" Width="280"/>
+    <Button Content="{DynamicResource Loc_LoginButton}"
+            Command="{Binding LoginWithPasswordCommand}"
+            Width="280" />
+    <Button Content="{DynamicResource Loc_LoginWithGoogle}"
+            Command="{Binding LoginWithGoogleCommand}"
+            Width="280" />
+    <TextBlock Text="{Binding StatusMessage}" 
+               Foreground="Red" 
+               HorizontalAlignment="Center"/>
+  </StackPanel>
+</Window>

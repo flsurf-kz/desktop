@@ -1,0 +1,51 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:FlsurfDesktop.Views"
+             x:Class="FlsurfDesktop.Views.FreelancerDashboardView">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="*">
+    <!-- Заголовок -->
+    <TextBlock Row="0" Text="{DynamicResource Loc_FreelancerDashboardTitle}"
+               FontSize="20" Margin="8"/>
+
+    <!-- Статистика: заработок за текущий час/день/месяц -->
+    <StackPanel Row="1" Orientation="Horizontal" Spacing="20" Margin="8">
+      <TextBlock Text="{Binding CurrentSessionInfo}" FontSize="14"/>
+      <TextBlock Text="{Binding TodayEarningsInfo}"  FontSize="14"/>
+      <TextBlock Text="{Binding MonthEarningsInfo}"  FontSize="14"/>
+    </StackPanel>
+
+    <!-- Список контрактов -->
+    <ListBox Row="2" Items="{Binding Contracts}"
+             SelectedItem="{Binding SelectedContract}"
+             Margin="8">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Border BorderThickness="0,0,0,1" BorderBrush="#33000000" Padding="4">
+            <DockPanel>
+              <StackPanel>
+                <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding Status}" FontStyle="Italic"/>
+              </StackPanel>
+              <TextBlock DockPanel.Dock="Right" 
+                         Text="{Binding RemainingBudgetStr}"
+                         Foreground="DarkGreen"/>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- Кнопки управления сессией и переход в детали -->
+    <StackPanel Row="3" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" Margin="8">
+      <Button Content="{DynamicResource Loc_ViewDetails}"
+              Command="{Binding ViewContractDetailsCommand}"
+              IsEnabled="{Binding SelectedContract, Converter={StaticResource NotNullBool}}"/>
+      <Button Content="{DynamicResource Loc_StartSession}"
+              Command="{Binding StartSessionCommand}"
+              IsEnabled="{Binding CanStartSession}"/>
+      <Button Content="{DynamicResource Loc_StopSession}"
+              Command="{Binding StopSessionCommand}"
+              IsEnabled="{Binding CanStopSession}"/>
+    </StackPanel>
+  </Grid>
+</UserControl>

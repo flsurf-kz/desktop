@@ -1,0 +1,30 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlsurfDesktop.Views.SessionDetailView"
+        Title="{DynamicResource Loc_SessionDetailTitle}" Width="500" Height="450"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+    <StackPanel Row="0" Spacing="6">
+      <TextBlock Text="{Binding StartDateLocal, StringFormat='Start: {0:yyyy-MM-dd HH:mm}'}"/>
+      <TextBlock Text="{Binding EndDateLocal,   StringFormat='End: {0:yyyy-MM-dd HH:mm}'}"/>
+      <TextBlock Text="{Binding DurationInfo}"/>
+      <TextBlock Text="{Binding Status}"/>
+      <TextBlock Text="{Binding FreelancerComment}"/>
+      <TextBlock Text="{Binding ClientComment}"/>
+    </StackPanel>
+
+    <!-- Список скриншотов -->
+    <ScrollViewer Row="1" Margin="0,12,0,0">
+      <ItemsControl Items="{Binding ScreenshotThumbnails}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Image Source="{Binding}" Width="200" Height="120" Margin="4"/>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <Button Row="2" Content="{DynamicResource Loc_Close}" 
+            Command="{Binding CloseCommand}" HorizontalAlignment="Right" Margin="0,12,0,0"/>
+  </Grid>
+</Window>

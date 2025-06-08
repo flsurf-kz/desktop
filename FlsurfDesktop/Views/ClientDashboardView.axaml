@@ -1,0 +1,38 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FlsurfDesktop.Views.ClientDashboardView">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+    <TextBlock Row="0" Text="{DynamicResource Loc_ClientDashboardTitle}"
+               FontSize="20" Margin="4"/>
+
+    <!-- Список текущих контрактов с потраченными средствами -->
+    <ListBox Row="1" Items="{Binding Contracts}"
+             SelectedItem="{Binding SelectedContract}" Margin="4">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Border BorderThickness="0,0,0,1" BorderBrush="#33000000" Padding="4">
+            <DockPanel>
+              <StackPanel>
+                <TextBlock Text="{Binding JobTitle}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding Status}" FontStyle="Italic"/>
+              </StackPanel>
+              <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                <TextBlock Text="{Binding TotalSpentStr}" Foreground="DarkRed"/>
+                <TextBlock Text="{Binding RemainingBudgetStr}" Foreground="DarkGreen"/>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <StackPanel Row="2" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" Margin="4">
+      <Button Content="{DynamicResource Loc_ViewContractDetail}" 
+              Command="{Binding ViewContractDetailsCommand}"
+              IsEnabled="{Binding SelectedContract, Converter={StaticResource NotNullBool}}"/>
+      <Button Content="{DynamicResource Loc_PayContract}" 
+              Command="{Binding PayContractCommand}"
+              IsEnabled="{Binding SelectedContract, Converter={StaticResource NotNullBool}}"/>
+    </StackPanel>
+  </Grid>
+</UserControl>
