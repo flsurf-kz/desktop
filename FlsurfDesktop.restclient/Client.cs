@@ -25,7 +25,7 @@ namespace FlsurfDesktop.RestClient
     using System = global::System;
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.3.0.0 (NJsonSchema v11.2.0.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial interface IFlsurfClient
+    public partial interface IApiService
     {
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
@@ -791,7 +791,7 @@ namespace FlsurfDesktop.RestClient
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.3.0.0 (NJsonSchema v11.2.0.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial class FlsurfClient : IFlsurfClient
+    public partial class ApiService : IApiService
     {
         #pragma warning disable 8618
         private string _baseUrl;
@@ -802,7 +802,7 @@ namespace FlsurfDesktop.RestClient
         private Newtonsoft.Json.JsonSerializerSettings _instanceSettings;
 
     #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
-        public FlsurfClient(System.Net.Http.HttpClient httpClient)
+        public ApiService(System.Net.Http.HttpClient httpClient)
     #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         {
             _baseUrl = "http://localhost:8000/";

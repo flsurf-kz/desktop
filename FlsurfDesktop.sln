@@ -3,19 +3,18 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlsurfDesktop", "FlsurfDesktop\FlsurfDesktop.csproj", "{38491496-0031-4470-B7A8-84D1F3C0D4F3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlsurfDesktop", "FlsurfDesktop\FlsurfDesktop.csproj", "{38491496-0031-4470-B7A8-84D1F3C0D4F3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlsurfDesktop.Core", "FlsurfDesktop.Core\FlsurfDesktop.Core.csproj", "{42C87FBF-B1F1-4F27-914E-7090EF5A4907}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlsurfDesktop.Core", "FlsurfDesktop.Core\FlsurfDesktop.Core.csproj", "{42C87FBF-B1F1-4F27-914E-7090EF5A4907}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlsurfDesktop.Platform", "FlsurfDesktop.Platform\FlsurfDesktop.Platform.csproj", "{48710D47-1EDE-4035-B922-B5571208E9F9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlsurfDesktop.Platform", "FlsurfDesktop.Platform\FlsurfDesktop.Platform.csproj", "{48710D47-1EDE-4035-B922-B5571208E9F9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlsurfDesktop.RestClient", "FlsurfDesktop.RestClient\FlsurfDesktop.RestClient.csproj", "{48710D47-1EDE-4035-B922-B5571208E9F0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{38491496-0031-4470-B7A8-84D1F3C0D4F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -30,5 +29,15 @@ Global
 		{48710D47-1EDE-4035-B922-B5571208E9F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{48710D47-1EDE-4035-B922-B5571208E9F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{48710D47-1EDE-4035-B922-B5571208E9F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48710D47-1EDE-4035-B922-B5571208E9F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48710D47-1EDE-4035-B922-B5571208E9F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48710D47-1EDE-4035-B922-B5571208E9F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48710D47-1EDE-4035-B922-B5571208E9F0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {30B6F226-9E6E-4489-A80E-B6BF9F0976C1}
 	EndGlobalSection
 EndGlobal

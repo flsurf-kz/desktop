@@ -1,56 +1,22 @@
-﻿using ReactiveUI;
-using System;
-using System.Collections.ObjectModel;
-using System.Reactive;
-using System.Threading.Tasks;
-using FlsurfDesktop.Core.Models;
-using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
-using System.Diagnostics;
+﻿using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 
-namespace FlsurfDesktop.ViewModels
+namespace FlsurfDesktop.Views
 {
-    public class NotificationsViewModel : ReactiveObject
+    public partial class NotificationsView : UserControl
     {
-        private readonly ApiService _api;
-
-        public ObservableCollection<NotificationDto> Notifications { get; } = new();
-
-        public ReactiveCommand<Unit, Unit> ReloadCommand { get; }
-        public ReactiveCommand<string, Unit> OpenLinkCommand { get; }
-
-        public NotificationsViewModel()
+        public NotificationsView()
         {
-            _api = App.Services.GetRequiredService<ApiService>();
-            ReloadCommand = ReactiveCommand.CreateFromTask(LoadNotificationsAsync);
-            OpenLinkCommand = ReactiveCommand.Create<string>(OpenLink);
-
-            _ = LoadNotificationsAsync();
+            InitializeComponent();
+#if DEBUG
+            this.AttachDevTools();
+#endif
         }
 
-        private async Task LoadNotificationsAsync()
+        private void InitializeComponent()
         {
-            Notifications.Clear();
-            var list = await _api.Client.GetNotifications(App.Services.GetRequiredService<AuthService>().CurrentUserProfile.Id);
-            foreach (var n in list)
-            {
-                Notifications.Add(new NotificationDto
-                {
-                    Title = n.Title,
-                    Text = n.Text,
-                    Url = n.Data // допустим, Data хранит URL
-                });
-            }
-        }
-
-        private void OpenLink(string url)
-        {
-            if (string.IsNullOrWhiteSpace(url)) return;
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            });
+            AvaloniaXamlLoader.Load(this);
         }
     }
 }

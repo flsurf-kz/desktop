@@ -71,5 +71,6 @@
   <ItemGroup>
     <ProjectReference Include="..\FlsurfDesktop.Core\FlsurfDesktop.Core.csproj" />
     <ProjectReference Include="..\FlsurfDesktop.Platform\FlsurfDesktop.Platform.csproj" />
+    <ProjectReference Include="..\flsurfdesktop.RestClient\FlsurfDesktop.RestClient.csproj" />
   </ItemGroup>
 </Project>

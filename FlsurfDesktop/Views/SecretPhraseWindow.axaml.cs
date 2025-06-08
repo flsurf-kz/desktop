@@ -1,54 +1,25 @@
-﻿using ReactiveUI;
-using System;
-using System.Reactive;
-using System.Threading.Tasks;
-using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
+using FlsurfDesktop.ViewModels;
 
-namespace FlsurfDesktop.ViewModels
+namespace FlsurfDesktop.Views
 {
-    public class SecretPhraseWindowViewModel : ReactiveObject
+    public partial class SecretPhraseWindow : Window
     {
-        private readonly AuthService _authService;
-        private string _phrase = "";
-        private string _statusMessage = "";
-        public Guid UserId { get; }
-        public bool IsVerified { get; private set; } = false;
-        public Action? CloseWindow { get; set; }
-
-        public string Phrase
+        public SecretPhraseWindow()
         {
-            get => _phrase;
-            set => this.RaiseAndSetIfChanged(ref _phrase, value);
+            InitializeComponent();
+#if DEBUG
+            this.AttachDevTools();
+#endif
+            if (DataContext is SecretPhraseWindowViewModel vm)
+                vm.CloseWindow = () => this.Close();
         }
 
-        public string StatusMessage
+        private void InitializeComponent()
         {
-            get => _statusMessage;
-            set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
-        }
-
-        public ReactiveCommand<Unit, Unit> VerifyCommand { get; }
-
-        public SecretPhraseWindowViewModel(Guid userId)
-        {
-            UserId = userId;
-            _authService = App.Services.GetRequiredService<AuthService>();
-            VerifyCommand = ReactiveCommand.CreateFromTask(VerifyAsync);
-        }
-
-        private async Task VerifyAsync()
-        {
-            StatusMessage = "";
-            var ok = await _authService.VerifySecretPhraseAsync(UserId, Phrase);
-            if (!ok)
-            {
-                StatusMessage = "Wrong secret phrase.";
-                return;
-            }
-
-            IsVerified = true;
-            CloseWindow?.Invoke();
+            AvaloniaXamlLoader.Load(this);
         }
     }
 }

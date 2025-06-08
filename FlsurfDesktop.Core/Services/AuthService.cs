@@ -5,12 +5,13 @@ using Duende.IdentityModel.OidcClient.Browser;
 using FlsurfDesktop.Core.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using FlsurfDesktop.RestClient; 
 
 namespace FlsurfDesktop.Core.Services
 {
     public class AuthService
     {
-        private readonly IClient _apiClient;       // NSwag-клиент
+        private readonly IApiService _apiClient;       // NSwag-клиент
         private readonly OidcClient _oidcClient;   // для Google/OIDC
         private readonly ILogger<AuthService> _log;
 

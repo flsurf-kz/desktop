@@ -11,4 +11,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\FlsurfDesktop.RestClient\FlsurfDesktop.RestClient.csproj" />
+  </ItemGroup>
+
 </Project>
