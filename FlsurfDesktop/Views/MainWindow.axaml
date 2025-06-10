@@ -1,55 +1,42 @@
 ﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:FlsurfDesktop.ViewModels"
-        xmlns:views="clr-namespace:FlsurfDesktop.Views"
+        xmlns:vm="using:FlsurfDesktop.ViewModels"
+        xmlns:views="using:FlsurfDesktop.Views"
+        xmlns:lang="clr-namespace:FlsurfDesktop.Resources.Strings"
+        x:DataType="vm:MainWindowViewModel"
         x:Class="FlsurfDesktop.Views.MainWindow"
-        Title="{DynamicResource Loc_AppTitle}" Width="1000" Height="650"
-        WindowStartupLocation="CenterScreen">
-  <Window.DataContext>
-    <vm:MainWindowViewModel/>
-  </Window.DataContext>
+        Icon="/Assets/avalonia-logo.ico" Title="FlSurf Desktop"
+        Width="1280" Height="720" WindowStartupLocation="CenterScreen">
 
-  <!-- Трей-иконка -->
-  <Window.TrayIcons>
-    <TrayIcon Source="/Assets/tray.png">
-      <TrayIcon.Menu>
-        <ContextMenu>
-          <MenuItem Header="{DynamicResource Loc_Show}" Command="{Binding ShowWindowCommand}"/>
-          <MenuItem Header="{DynamicResource Loc_StartSession}" Command="{Binding StartSessionCommand}"/>
-          <MenuItem Header="{DynamicResource Loc_StopSession}"  Command="{Binding StopSessionCommand}"/>
-          <Separator/>
-          <MenuItem Header="{DynamicResource Loc_Exit}" Command="{Binding ExitCommand}"/>
-        </ContextMenu>
-      </TrayIcon.Menu>
-    </TrayIcon>
-  </Window.TrayIcons>
+	<Grid ColumnDefinitions="240, *">
+		<Border Grid.Column="0" Background="#2c3e50" Padding="15">
+			<StackPanel Spacing="10">
+				<StackPanel Spacing="5" Margin="0,0,0,20">
+					<TextBlock Text="{Binding CurrentUserName}" FontWeight="Bold" FontSize="18" Foreground="White"/>
+					<TextBlock Text="{Binding (_authService.CurrentUserProfile.Type)}" Foreground="#bdc3c7"/>
+				</StackPanel>
 
-  <DockPanel>
-    <!-- Верхнее меню с навигацией -->
-    <Menu DockPanel.Dock="Top">
-      <MenuItem Header="{DynamicResource Loc_File}">
-        <MenuItem Header="{DynamicResource Loc_Settings}" 
-                  Command="{Binding OpenSettingsCommand}"/>
-        <MenuItem Header="{DynamicResource Loc_Logout}" 
-                  Command="{Binding LogoutCommand}"/>
-        <Separator/>
-        <MenuItem Header="{DynamicResource Loc_Exit}" 
-                  Command="{Binding ExitCommand}"/>
-      </MenuItem>
-      <MenuItem Header="{DynamicResource Loc_View}">
-        <MenuItem Header="{DynamicResource Loc_FreelancerDashboard}" 
-                  Command="{Binding ShowFreelancerDashboardCommand}"
-                  IsVisible="{Binding IsFreelancer}"/>
-        <MenuItem Header="{DynamicResource Loc_ClientDashboard}" 
-                  Command="{Binding ShowClientDashboardCommand}"
-                  IsVisible="{Binding IsClient}"/>
-        <MenuItem Header="{DynamicResource Loc_Notifications}" 
-                  Command="{Binding ShowNotificationsCommand}"/>
-      </MenuItem>
-    </Menu>
+				<Button Content="Dashboard" Command="{Binding ShowDashboardCommand}" HorizontalAlignment="Stretch" Classes="nav"/>
+				<Button Content="Notifications" Command="{Binding ShowNotificationsCommand}" HorizontalAlignment="Stretch" Classes="nav"/>
+				<Button Content="{x:Static lang:Strings.Settings}" Command="{Binding OpenSettingsCommand}" HorizontalAlignment="Stretch" Classes="nav"/>
+				<Button Content="Log Out" Command="{Binding LogoutCommand}" HorizontalAlignment="Stretch" Classes="nav danger" Margin="0,30,0,0"/>
+			</StackPanel>
+		</Border>
 
-    <!-- Основная область: тут будет подставляться нужный View -->
-    <ContentControl Content="{Binding CurrentView}"
-                    Margin="12"/>
-  </DockPanel>
+		<Border Grid.Column="1" Padding="25" Background="#ecf0f1">
+			<ContentControl Content="{Binding CurrentView}">
+				<ContentControl.DataTemplates>
+					<DataTemplate DataType="{x:Type vm:FreelancerDashboardViewModel}">
+						<views:FreelancerDashboardView/>
+					</DataTemplate>
+					<DataTemplate DataType="{x:Type vm:ClientDashboardViewModel}">
+						<views:ClientDashboardView/>
+					</DataTemplate>
+					<DataTemplate DataType="{x:Type vm:NotificationsViewModel}">
+						<views:NotificationsView/>
+					</DataTemplate>
+				</ContentControl.DataTemplates>
+			</ContentControl>
+		</Border>
+	</Grid>
 </Window>

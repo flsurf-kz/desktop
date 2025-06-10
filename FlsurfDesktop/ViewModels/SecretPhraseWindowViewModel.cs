@@ -3,18 +3,20 @@ using System;
 using System.Reactive;
 using System.Threading.Tasks;
 using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
+using System.Reactive.Linq; // Нужен для ObserveOn
 
 namespace FlsurfDesktop.ViewModels
 {
     public class SecretPhraseWindowViewModel : ReactiveObject
     {
         private readonly AuthService _authService;
+
+        private Guid _userId;
         private string _phrase = "";
         private string _statusMessage = "";
-        public Guid UserId { get; }
+        private bool _isBusy;
+
         public bool IsVerified { get; private set; } = false;
-        public Action? CloseWindow { get; set; }
 
         public string Phrase
         {
@@ -25,30 +27,62 @@ namespace FlsurfDesktop.ViewModels
         public string StatusMessage
         {
             get => _statusMessage;
-            set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
+            private set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
         }
 
-        public ReactiveCommand<Unit, Unit> VerifyCommand { get; }
-
-        public SecretPhraseWindowViewModel(Guid userId)
+        public bool IsBusy
         {
-            UserId = userId;
-            _authService = App.Services.GetRequiredService<AuthService>();
-            VerifyCommand = ReactiveCommand.CreateFromTask(VerifyAsync);
+            get => _isBusy;
+            private set => this.RaiseAndSetIfChanged(ref _isBusy, value);
         }
 
-        private async Task VerifyAsync()
+        public ReactiveCommand<Unit, bool> VerifyCommand { get; }
+        public ReactiveCommand<Unit, Unit> CancelCommand { get; }
+
+        // 1. Конструктор теперь принимает ТОЛЬКО зависимости от DI.
+        // Он больше не знает о userId.
+        public SecretPhraseWindowViewModel(AuthService authService)
         {
-            StatusMessage = "";
-            var ok = await _authService.VerifySecretPhraseAsync(UserId, Phrase);
+            _authService = authService;
+
+            var canVerify = this.WhenAnyValue(
+                x => x.Phrase,
+                x => x.IsBusy,
+                (phrase, busy) => !string.IsNullOrWhiteSpace(phrase) && !busy);
+
+            VerifyCommand = ReactiveCommand.CreateFromTask(VerifyAsync, canVerify);
+            CancelCommand = ReactiveCommand.Create(Cancel);
+        }
+
+        // 2. Публичный метод для передачи динамических данных ПОСЛЕ создания ViewModel.
+        public void Initialize(Guid userId)
+        {
+            _userId = userId;
+        }
+
+        private async Task<bool> VerifyAsync()
+        {
+            IsBusy = true;
+            StatusMessage = "Verifying...";
+
+            var ok = await _authService.VerifySecretPhraseAsync(_userId, Phrase);
+
             if (!ok)
             {
                 StatusMessage = "Wrong secret phrase.";
-                return;
+                IsBusy = false;
+                return false;
             }
 
+            StatusMessage = "Success!";
             IsVerified = true;
-            CloseWindow?.Invoke();
+            IsBusy = false;
+            return true;
+        }
+
+        private void Cancel()
+        {
+            IsVerified = false;
         }
     }
 }

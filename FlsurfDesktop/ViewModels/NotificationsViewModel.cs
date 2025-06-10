@@ -33,7 +33,7 @@ namespace FlsurfDesktop.ViewModels
         private async Task LoadNotificationsAsync()
         {
             Notifications.Clear();
-            var list = await _api.Client.GetNotifications(App.Services.GetRequiredService<AuthService>().CurrentUserProfile.Id);
+            var list = await _api.GetNotificationsAsync(App.Services.GetRequiredService<AuthService>().CurrentUserProfile.Id);
             foreach (var n in list)
             {
                 Notifications.Add(new NotificationDto

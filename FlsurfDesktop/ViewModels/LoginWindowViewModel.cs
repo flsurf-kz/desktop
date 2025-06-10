@@ -1,94 +1,110 @@
 ﻿using ReactiveUI;
 using System;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
+using FlsurfDesktop.Services;
 
 namespace FlsurfDesktop.ViewModels
 {
     public class LoginWindowViewModel : ReactiveObject
     {
+        // --- Зависимости, полученные через DI ---
         private readonly AuthService _authService;
-        private string _email = "";
-        private string _password = "";
-        private string _statusMessage = "";
+        private readonly IViewManager _viewManager;
 
+        // --- Свойства для привязки к View ---
+        private string _email = "";
         public string Email
         {
             get => _email;
             set => this.RaiseAndSetIfChanged(ref _email, value);
         }
 
+        private string _password = "";
         public string Password
         {
             get => _password;
             set => this.RaiseAndSetIfChanged(ref _password, value);
         }
 
+        private string _statusMessage = "";
         public string StatusMessage
         {
             get => _statusMessage;
-            set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
+            private set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
         }
 
+        private bool _isBusy;
+        public bool IsBusy
+        {
+            get => _isBusy;
+            private set => this.RaiseAndSetIfChanged(ref _isBusy, value);
+        }
+
+        // --- Команды ---
         public ReactiveCommand<Unit, Unit> LoginWithPasswordCommand { get; }
         public ReactiveCommand<Unit, Unit> LoginWithGoogleCommand { get; }
 
-        // Делегат, который позволяет закрыть окно из VM
-        public Action? CloseWindow { get; set; }
-
-        public LoginWindowViewModel()
+        public LoginWindowViewModel(AuthService authService, IViewManager viewManager)
         {
-            _authService = App.Services.GetRequiredService<AuthService>();
+            _authService = authService;
+            _viewManager = viewManager;
 
-            LoginWithPasswordCommand = ReactiveCommand.CreateFromTask(LoginWithPasswordAsync);
-            LoginWithGoogleCommand = ReactiveCommand.CreateFromTask(LoginWithGoogleAsync);
+            // Определяем, когда кнопка логина активна:
+            // когда поля Email и Password не пустые и когда не идет процесс входа
+            var canLogin = this.WhenAnyValue(
+                x => x.Email,
+                x => x.Password,
+                x => x.IsBusy,
+                (email, pass, busy) =>
+                    !string.IsNullOrWhiteSpace(email) &&
+                    !string.IsNullOrWhiteSpace(pass) &&
+                    !busy);
+
+            LoginWithPasswordCommand = ReactiveCommand.CreateFromTask(LoginWithPasswordAsync, canLogin);
+
+            // Команда для входа через Google (пока заглушка)
+            LoginWithGoogleCommand = ReactiveCommand.Create(() =>
+            {
+                StatusMessage = "Login with Google is not implemented yet.";
+            });
         }
 
         private async Task LoginWithPasswordAsync()
         {
-            StatusMessage = "";
+            IsBusy = true;
+            StatusMessage = "Logging in...";
+
             var result = await _authService.LoginWithCredentialsAsync(Email, Password);
+
             if (!result.Success)
             {
                 StatusMessage = result.ErrorMessage;
+                IsBusy = false;
                 return;
             }
 
-            // Проверяем, нужно ли запрашивать секретную фразу:
+            // Если API требует подтверждения секретной фразой
             if (result.NeedsSecretPhrase)
             {
-                // Открываем SecretPhraseWindow
-                var secretVm = new SecretPhraseWindowViewModel(result.UserId);
-                var secretWin = new Views.SecretPhraseWindow { DataContext = secretVm };
-                secretVm.CloseWindow = () => secretWin.Close();
+                StatusMessage = "Waiting for secret phrase verification...";
+                // ViewModel просит ViewManager показать диалог и ждет результат
+                bool verified = _viewManager.ShowSecretPhraseDialog(result.UserId);
 
-                secretWin.ShowDialog(App.Current.MainWindow);
-                // Только после закрытия окна проверяем:
-                if (!secretVm.IsVerified)
+                if (!verified)
                 {
-                    StatusMessage = "Secret phrase verification failed.";
+                    StatusMessage = "Secret phrase verification failed or was cancelled.";
+                    IsBusy = false;
                     return;
                 }
             }
 
-            // Всё успешно: закрываем LoginWindow и открываем MainWindow
-            CloseWindow?.Invoke();
-        }
+            StatusMessage = "Success!";
 
-        private async Task LoginWithGoogleAsync()
-        {
-            StatusMessage = "";
-            var result = await _authService.LoginWithOidcAsync();
-            if (!result.Success)
-            {
-                StatusMessage = result.ErrorMessage;
-                return;
-            }
-
-            // OIDC-логин → сразу в MainWindow
-            CloseWindow?.Invoke();
+            // Просим ViewManager показать главное окно и закрыть окно логина
+            _viewManager.ShowMainWindowAndCloseLogin();
         }
     }
 }

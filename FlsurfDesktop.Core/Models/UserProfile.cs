@@ -1,5 +1,5 @@
 ﻿using System;
-using FlsurfDesktop.Core.NSwagClient; // сюда входят Entity-классы, сгенерированные NSwag
+using FlsurfDesktop.RestClient; // сюда входят Entity-классы, сгенерированные NSwag
 
 namespace FlsurfDesktop.Core.Models
 {
@@ -22,7 +22,7 @@ namespace FlsurfDesktop.Core.Models
                 DesktopBadgeCountEnabled = entity.NotificationSettings.DesktopBadgeCountEnabled,
                 // … остальные поля
             };
-            SecretPhraseRequired = entity.SecretPhraseRequired ? "yes" : null;
+            SecretPhraseRequired = entity.Protected ? "yes" : null;
         }
     }
 

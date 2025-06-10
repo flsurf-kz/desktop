@@ -1,113 +1,121 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using FlsurfDesktop.Core.Models;
-using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
+using FlsurfDesktop.RestClient;
+using Microsoft.Extensions.Logging;
 
-namespace FlsurfDesktop.Core.Services
+namespace FlsurfDesktop.Core.Services;
+
+public class SessionService
 {
-    public class SessionService
+    private readonly IApiService _api;
+    private readonly IScreenCaptureService _screenCapture;
+    private readonly ILogger<SessionService> _logger;
+    private CancellationTokenSource? _cts;
+    private Timer? _ticker;
+
+    public bool IsActive { get; private set; }
+    public Guid CurrentContractId { get; private set; }
+    public TimeSpan Elapsed { get; private set; }
+    public decimal EarnedSoFar { get; private set; }
+    private decimal _costPerHour;
+
+    public event Action? SessionStateChanged;
+
+    public SessionService(IApiService api, IScreenCaptureService screenCapture, ILogger<SessionService> logger)
     {
-        private readonly ApiService _api;
-        private readonly IScreenCaptureService _screenCapture;
-        private CancellationTokenSource? _cts;
-        private Guid _currentContractId;
-        private DateTimeOffset _sessionStart;
-        private decimal _earnedSoFar = 0m;
-        private Timer _randomTimer;
+        _api = api;
+        _screenCapture = screenCapture;
+        _logger = logger;
+    }
 
-        public bool IsActive { get; private set; } = false;
+    public async Task StartSessionAsync(Guid contractId)
+    {
+        if (IsActive) return;
 
-        /// <summary>Вызывается, когда сессия стартовала.</summary>
-        public event Action<Guid, DateTimeOffset>? SessionStarted;
+        _logger.LogInformation("Starting session for contract {ContractId}", contractId);
 
-        /// <summary>Вызывается, когда сессия завершилась: контрактId, время окончания, заработано всего.</summary>
-        public event Action<Guid, DateTimeOffset, decimal>? SessionEnded;
-
-        /// <summary>Периодический тик (каждые 1 минуту) – возвращает сколько прошло и сколько заработано.</summary>
-        public event Action<TimeSpan, decimal>? SessionPeriodicTick;
-
-        public SessionService(ApiService api, IScreenCaptureService screenCapture)
+        try
         {
-            _api = api;
-            _screenCapture = screenCapture;
-        }
+            var contract = await _api.GetContractAsync(contractId);
+            _costPerHour = (decimal)contract.CostPerHour.Amount;
 
-        public async Task StartSessionAsync(Guid contractId)
-        {
-            if (IsActive) return;
+            // TODO: API должен вернуть ID сессии после старта
+            // var sessionResult = await _api.StartSessionAsync(new StartWorkSessionCommand { ContractId = contractId });
+            // var sessionId = Guid.Parse(sessionResult.Id);
 
-            _currentContractId = contractId;
-            _sessionStart = DateTimeOffset.UtcNow;
             IsActive = true;
-            _earnedSoFar = 0m;
+            CurrentContractId = contractId;
+            EarnedSoFar = 0;
+            Elapsed = TimeSpan.Zero;
 
-            // Нотифицируем внешний мир
-            SessionStarted?.Invoke(contractId, _sessionStart);
-
-            // Отправляем на бекенд команду START
-            await _api.Client.StartSession(new StartWorkSessionCommand { ContractId = contractId });
-
-            // Запускаем таймер случайных скриншотов в течение часа
             _cts = new CancellationTokenSource();
+
+            // Запускаем тикер для обновления времени и заработка
+            var startTime = DateTime.UtcNow;
+            _ticker = new Timer(_ =>
+            {
+                Elapsed = DateTime.UtcNow - startTime;
+                EarnedSoFar = (decimal)Elapsed.TotalHours * _costPerHour;
+                SessionStateChanged?.Invoke();
+            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
             _ = RunScreenshotLoopAsync(_cts.Token);
+            SessionStateChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start session for contract {ContractId}", contractId);
+        }
+    }
 
-            // Запускаем периодический тик (каждую минуту), чтобы считать earnedSoFar
-            _randomTimer = new Timer(_ =>
-            {
-                var elapsed = DateTimeOffset.UtcNow - _sessionStart;
-                // Зарплата = elapsed.TotalHours * CostPerHour (надо получить CostPerHour)
-                // Но мы можем запрашивать контракт (или сохранять из фмд) при старте
-                // Для простоты пусть ApiService хранит CostPerHour
-                var costPerHour = _api.CostPerHour(_currentContractId);
-                _earnedSoFar = (decimal)elapsed.TotalHours * costPerHour;
-                SessionPeriodicTick?.Invoke(elapsed, _earnedSoFar);
-            }, null, TimeSpan.Zero, TimeSpan.FromMinutes(1));
+    public async Task StopSessionAsync()
+    {
+        if (!IsActive) return;
+        _logger.LogInformation("Stopping session for contract {ContractId}", CurrentContractId);
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _ticker?.Dispose();
+
+        try
+        {
+            // await _api.EndSessionAsync(new EndWorkSessionCommand { SessionId = ... });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to properly end session on server.");
         }
 
-        public async Task StopSessionAsync()
+        IsActive = false;
+        SessionStateChanged?.Invoke();
+    }
+
+    private async Task RunScreenshotLoopAsync(CancellationToken token)
+    {
+        var random = new Random();
+        while (!token.IsCancellationRequested)
         {
-            if (!IsActive) return;
-
-            IsActive = false;
-            _cts?.Cancel();
-            _randomTimer?.Dispose();
-
-            var sessionEnd = DateTimeOffset.UtcNow;
-            // Отправляем команду END на бекенд
-            await _api.Client.EndSession(new EndWorkSessionCommand { ContractId = _currentContractId });
-
-            // Предположим, что бекенд вернёт итоговую зарплату (но если нет, мы уже вычислили _earnedSoFar на последнем тике)
-            decimal earnedTotal = _earnedSoFar;
-            SessionEnded?.Invoke(_currentContractId, sessionEnd, earnedTotal);
-        }
-
-        private async Task RunScreenshotLoopAsync(CancellationToken token)
-        {
-            var rnd = new Random();
-            while (!token.IsCancellationRequested)
+            try
             {
-                // Ждём случайное время: 1–60 минут
-                int minutesToNext = rnd.Next(1, 61);
-                try
+                var delayMinutes = random.Next(1, 10);
+                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), token);
+
+                _logger.LogInformation("Capturing screenshot for contract {ContractId}", CurrentContractId);
+                byte[] screenshotBytes = await _screenCapture.CapturePrimaryScreenAsync();
+
+                if (screenshotBytes.Length > 0)
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(minutesToNext), token);
+                    using var ms = new MemoryStream(screenshotBytes);
+                    var fileParam = new FileParameter(ms, $"{Guid.NewGuid()}.png", "image/png");
+                    // TODO: Привязать загруженный файл к рабочей сессии
+                    // var fileEntity = await _api.UploadFileAsync(fileParam);
+                    // await _api.AttachFileToSessionAsync(sessionId, fileEntity.Id);
                 }
-                catch (TaskCanceledException) { break; }
-
-                if (token.IsCancellationRequested) break;
-
-                // Делаем скриншот
-                var pngBytes = await _screenCapture.CapturePrimaryScreenAsync();
-
-                // Здесь можно запаковать PNG, добавить в multipart/form-data и отправить на бекенд:
-                using var ms = new System.IO.MemoryStream(pngBytes);
-                var fileParam = new FileParameter(ms, $"{Guid.NewGuid()}.png", "image/png");
-                await _api.Client.UploadFile(fileParam);
-
-                // Также можно отправить DTO WorkSessionFile, прикрепив его к _currentContractId и текущему времени.
             }
+            catch (TaskCanceledException) { break; }
+            catch (Exception ex) { _logger.LogError(ex, "Screenshot loop failed."); }
         }
     }
 }

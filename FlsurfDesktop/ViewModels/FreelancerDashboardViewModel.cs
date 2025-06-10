@@ -1,133 +1,88 @@
-﻿using ReactiveUI;
+﻿using FlsurfDesktop.Core.Services;
+using FlsurfDesktop.RestClient;
+using ReactiveUI;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
-using FlsurfDesktop.Core.Models;
-using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
-using FlsurfDesktop.RestClient;
 
-namespace FlsurfDesktop.ViewModels
+namespace FlsurfDesktop.ViewModels;
+
+public class FreelancerDashboardViewModel : ReactiveObject
 {
-    public class FreelancerDashboardViewModel : ReactiveObject
+    private readonly IApiService _api;
+    private readonly SessionService _sessionService;
+
+    public ObservableCollection<ContractSummaryDto> Contracts { get; } = new();
+
+    private ContractSummaryDto? _selectedContract;
+    public ContractSummaryDto? SelectedContract
     {
-        private readonly ApiService _api;
-        private readonly SessionService _sessionService;
+        get => _selectedContract;
+        set => this.RaiseAndSetIfChanged(ref _selectedContract, value);
+    }
 
-        public ObservableCollection<ContractSummary> Contracts { get; } = new();
+    private string _sessionStatusText = "Session is not active.";
+    public string SessionStatusText
+    {
+        get => _sessionStatusText;
+        set => this.RaiseAndSetIfChanged(ref _sessionStatusText, value);
+    }
 
-        private ContractSummary? _selectedContract;
-        public ContractSummary? SelectedContract
+    public bool CanStartSession => SelectedContract != null && !_sessionService.IsActive;
+    public bool CanStopSession => _sessionService.IsActive;
+
+    public ReactiveCommand<Unit, Unit> StartSessionCommand { get; }
+    public ReactiveCommand<Unit, Unit> StopSessionCommand { get; }
+
+    public FreelancerDashboardViewModel(IApiService api, SessionService sessionService)
+    {
+        _api = api;
+        _sessionService = sessionService;
+
+        var canStart = this.WhenAnyValue(x => x.SelectedContract, x => x._sessionService.IsActive,
+            (contract, isActive) => contract != null && !isActive);
+
+        var canStop = this.WhenAnyValue(x => x._sessionService.IsActive);
+
+        StartSessionCommand = ReactiveCommand.CreateFromTask(StartSession, canStart);
+        StopSessionCommand = ReactiveCommand.CreateFromTask(_sessionService.StopSessionAsync, canStop);
+
+        _sessionService.SessionStateChanged += UpdateSessionStatus;
+
+        _ = LoadContractsAsync();
+    }
+
+    private async Task LoadContractsAsync()
+    {
+        Contracts.Clear();
+        // TODO: Фильтр по FreelancerId нужно будет добавить в ваш API
+        var contracts = await _api.GetContractsListAsync(new GetContractsListQuery());
+        foreach (var contract in contracts)
         {
-            get => _selectedContract;
-            set
-            {
-                this.RaiseAndSetIfChanged(ref _selectedContract, value);
-                UpdateSessionButtons();
-            }
+            Contracts.Add(new ContractSummaryDto());
         }
+    }
 
-        public bool CanStartSession => SelectedContract != null && !_sessionService.IsActive;
-        public bool CanStopSession => _sessionService.IsActive;
+    private Task StartSession()
+    {
+        if (SelectedContract == null) return Task.CompletedTask;
+        return _sessionService.StartSessionAsync(SelectedContract.ContractId);
+    }
 
-        public string CurrentSessionInfo { get; private set; } = "";
-        public string TodayEarningsInfo { get; private set; } = "";
-        public string MonthEarningsInfo { get; private set; } = "";
-
-        public ReactiveCommand<Unit, Unit> LoadContractsCommand { get; }
-        public ReactiveCommand<Unit, Unit> ViewContractDetailsCommand { get; }
-        public ReactiveCommand<Unit, Unit> StartSessionCommand { get; }
-        public ReactiveCommand<Unit, Unit> StopSessionCommand { get; }
-
-        public FreelancerDashboardViewModel()
+    private void UpdateSessionStatus()
+    {
+        if (_sessionService.IsActive)
         {
-            _api = App.Services.GetRequiredService<ApiService>();
-            _sessionService = App.Services.GetRequiredService<SessionService>();
-
-            LoadContractsCommand = ReactiveCommand.CreateFromTask(LoadContractsAsync);
-            ViewContractDetailsCommand = ReactiveCommand.Create(ViewDetails);
-            StartSessionCommand = ReactiveCommand.CreateFromTask(StartSessionAsync);
-            StopSessionCommand = ReactiveCommand.CreateFromTask(StopSessionAsync);
-
-            // Загружаем контракты при старте
-            _ = LoadContractsAsync();
-
-            // Подписываемся на изменения сессии, чтобы обновлять отображение статуса
-            _sessionService.SessionStarted += OnSessionStarted;
-            _sessionService.SessionEnded += OnSessionEnded;
-            _sessionService.SessionPeriodicTick += OnSessionPeriodicTick;
+            SessionStatusText = $"Session running for {SelectedContract?.ContractLabel}. Time: {_sessionService.Elapsed:hh\\:mm\\:ss}. Earned: {_sessionService.EarnedSoFar:C}";
         }
-
-        private void UpdateSessionButtons()
+        else
         {
-            this.RaisePropertyChanged(nameof(CanStartSession));
-            this.RaisePropertyChanged(nameof(CanStopSession));
+            SessionStatusText = "Session is not active. Select a contract to start.";
         }
-
-        private async Task LoadContractsAsync()
-        {
-            Contracts.Clear();
-            var list = await _api.Client.GetContractsList(new GetContractsListQuery());
-            foreach (var c in list)
-            {
-                // Преобразуем ContractEntity → ContractSummary (модель для списка)
-                Contracts.Add(new ContractSummary
-                {
-                    Id = c.Id,
-                    Title = c.Job.Title,
-                    Status = c.Status.ToString(),
-                    RemainingBudget = c.RemainingBudget ?? 0,
-                    CostPerHour = c.CostPerHour.Amount
-                });
-            }
-        }
-
-        private void ViewDetails()
-        {
-            if (SelectedContract == null)
-                return;
-
-            var vm = new ContractDetailViewModel(SelectedContract.Id);
-            var view = new Views.ContractDetailView { DataContext = vm };
-            view.ShowDialog(App.Current.MainWindow);
-        }
-
-        private async Task StartSessionAsync()
-        {
-            if (SelectedContract == null) return;
-
-            // Оповещаем SessionService, чтобы он начал сессию
-            await _sessionService.StartSessionAsync(SelectedContract.Id);
-
-            UpdateSessionButtons();
-        }
-
-        private async Task StopSessionAsync()
-        {
-            await _sessionService.StopSessionAsync();
-            UpdateSessionButtons();
-        }
-
-        private void OnSessionStarted(Guid contractId, DateTimeOffset startTime)
-        {
-            CurrentSessionInfo = $"Session started at {startTime.LocalDateTime:T}";
-            this.RaisePropertyChanged(nameof(CurrentSessionInfo));
-        }
-
-        private void OnSessionEnded(Guid contractId, DateTimeOffset endTime, decimal earned)
-        {
-            CurrentSessionInfo = $"Last session ended at {endTime.LocalDateTime:T}, earned {earned:C}";
-            this.RaisePropertyChanged(nameof(CurrentSessionInfo));
-            // Перезагрузить контракты, чтобы обновить RemainingBudget
-            _ = LoadContractsAsync();
-        }
-
-        private void OnSessionPeriodicTick(TimeSpan elapsed, decimal earnedSoFar)
-        {
-            TodayEarningsInfo = $"Elapsed: {elapsed:h\\:mm}, Earned so far: {earnedSoFar:C}";
-            this.RaisePropertyChanged(nameof(TodayEarningsInfo));
-        }
+        this.RaisePropertyChanged(nameof(CanStartSession));
+        this.RaisePropertyChanged(nameof(CanStopSession));
     }
 }

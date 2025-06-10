@@ -1,95 +1,107 @@
-﻿// Program.cs - точка входа Avalonia-приложения с DI, Serilog и OIDC-авторизацией.
-using Avalonia;
+﻿using Avalonia;
+using Avalonia.ReactiveUI;
 using FlsurfDesktop.Core.Services;
-using FlsurfDesktop.Platform;
+using FlsurfDesktop.Core.Models;
+using FlsurfDesktop.ViewModels;
+using FlsurfDesktop.RestClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Serilog;
 using System;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace FlsurfDesktop
+namespace FlsurfDesktop;
+
+internal class Program
 {
-    internal class Program
+    [STAThread]
+    public static void Main(string[] args)
     {
-        [STAThread]
-        public static void Main(string[] args)
-        {
-            // Собираем и стартуем Generic Host
-            var host = CreateHostBuilder(args).Build();
+        var host = CreateHostBuilder(args).Build();
+        // Сохраняем ServiceProvider в статическое свойство для доступа в редких случаях,
+        // но стараемся его не использовать напрямую.
+        App.Services = host.Services;
 
-            // Запускаем Avalonia с передачей DI-контейнера
-            BuildAvaloniaApp(host).StartWithClassicDesktopLifetime(args);
-        }
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
 
-        /// <summary>Создаёт IHostBuilder: Serilog, DI, HttpClient, HostedServices.</summary>
-        private static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                // Перенаправляем логи в Serilog (конфиг читается из appsettings.json)
-                .UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration))
-                .ConfigureServices((ctx, services) =>
+    public static IHostBuilder CreateHostBuilder(string[] args) =>
+        Host.CreateDefaultBuilder(args)
+            .UseSerilog((context, configuration) =>
+                configuration.ReadFrom.Configuration(context.Configuration).WriteTo.Console())
+            .ConfigureServices((hostContext, services) =>
+            {
+                // --- СЕРВИСЫ ЯДРА (Core Services) ---
+                // Singleton - один экземпляр на все приложение
+                services.AddSingleton<AuthService>();
+                services.AddSingleton<SessionService>();
+
+                // --- HTTP-КЛИЕНТ И API ---
+                // Регистрируем обработчик, который будет добавлять токен авторизации
+                services.AddTransient<AuthHeaderHandler>();
+
+                // Регистрируем сгенерированный NSwag клиент
+                services.AddHttpClient<IApiService, ApiService>(client =>
                 {
-                    /* ---------- Core-слой ---------- */
-                    services.AddSingleton<AuthService>();
-                    services.AddSingleton<SessionService>();
-                    services.AddHostedService<SessionTrackerService>();
-                    services.AddSingleton<NotificationService>();
+                    // URL вашего API (в идеале из appsettings.json)
+                    client.BaseAddress = new Uri("http://localhost:8000");
+                })
+                .AddHttpMessageHandler<AuthHeaderHandler>();
 
-                    /* ---------- Http-клиент API ---------- */
-                    services.AddHttpClient<ApiService>(client =>
-                    {
-                        client.BaseAddress = new Uri(ctx.Configuration["Api:BaseUrl"]);
-                    })
-                    // Подмешиваем заголовок Authorization ко всем запросам
-                    .AddHttpMessageHandler(sp =>
-                        new AuthHeaderHandler(() => sp.GetRequiredService<AuthService>().AccessToken));
+                // --- СЕРВИСЫ ПРИЛОЖЕНИЯ ---
+                services.AddSingleton<IViewManager, ViewManager>();
+                services.AddSingleton<IScreenCaptureService, StubScreenCaptureService>(); // Заглушка, замените на реализацию
 
-                    /* ---------- Платформенные сервисы ---------- */
-#if WINDOWS
-                    services.AddSingleton<IScreenCaptureService, ScreenCaptureServiceWin>();
-#else
-                    // Временно заглушка – добавь реализацию для macOS/Linux позже
-                    services.AddSingleton<IScreenCaptureService, StubScreenCaptureService>();
-#endif
-                });
+                // --- VIEWMODELS ---
+                // Окна и страницы, которые могут создаваться много раз
+                services.AddTransient<LoginWindowViewModel>();
+                services.AddTransient<SecretPhraseWindowViewModel>();
+                services.AddTransient<SettingsWindowViewModel>();
+                services.AddTransient<FreelancerDashboardViewModel>();
+                services.AddTransient<ClientDashboardViewModel>();
+                services.AddTransient<NotificationsViewModel>();
+                services.AddTransient<ContractDetailViewModel>();
+                services.AddTransient<SessionDetailViewModel>();
 
-        /// <summary>Строит AvaloniaApp и запускает Host.</summary>
-        private static AppBuilder BuildAvaloniaApp(IHost host) =>
-            AppBuilder.Configure<App>(() => new App(host.Services))
-                      .UsePlatformDetect()
-                      .LogToTrace()
-                      .AfterSetup(_ => host.Start());
+                // Главная ViewModel - одна на все приложение
+                services.AddSingleton<MainWindowViewModel>();
+            });
+
+    public static AppBuilder BuildAvaloniaApp()
+        => AppBuilder.Configure<App>()
+            .UsePlatformDetect()
+            .LogToTrace()
+            .UseReactiveUI();
+}
+
+
+/// <summary>
+/// Вспомогательный класс для автоматического добавления Bearer токена в каждый HTTP-запрос к API.
+/// </summary>
+public class AuthHeaderHandler : DelegatingHandler
+{
+    private readonly IServiceProvider _services;
+
+    public AuthHeaderHandler(IServiceProvider services)
+    {
+        _services = services;
     }
 
-    // ---------- Вспомогательные классы ----------
-
-    /// <summary>DelegatingHandler, который вставляет Bearer-токен в каждый запрос.</summary>
-    internal sealed class AuthHeaderHandler : DelegatingHandler
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        private readonly Func<string> _tokenProvider;
-
-        public AuthHeaderHandler(Func<string> tokenProvider) => _tokenProvider = tokenProvider;
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        // Используем Scope, чтобы не создавать "захваченную" зависимость в Singleton-обработчике
+        using (var scope = _services.CreateScope())
         {
-            var token = _tokenProvider();
-            if (!string.IsNullOrWhiteSpace(token))
+            var authService = scope.ServiceProvider.GetRequiredService<AuthService>();
+            if (!string.IsNullOrWhiteSpace(authService.AccessToken))
+            {
                 request.Headers.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-            return base.SendAsync(request, ct);
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authService.AccessToken);
+            }
         }
-    }
 
-#if !WINDOWS
-    /// <summary>Заглушка захвата экрана для macOS/Linux, пока не реализовано.</summary>
-    internal sealed class StubScreenCaptureService : IScreenCaptureService
-    {
-        public Task<byte[]> CapturePrimaryScreenAsync() =>
-            Task.FromResult(Array.Empty<byte>());
+        return base.SendAsync(request, cancellationToken);
     }
-#endif
 }

@@ -1,28 +1,31 @@
-﻿using ReactiveUI;
+﻿using FlsurfDesktop.Models; // Понадобится для WorkSessionViewModel
+using FlsurfDesktop.RestClient;
+using FlsurfDesktop.Services;
+using ReactiveUI;
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
-using FlsurfDesktop.Core.Models;
-using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
-using FlsurfDesktop.RestClient;
 
 namespace FlsurfDesktop.ViewModels
 {
     public class ContractDetailViewModel : ReactiveObject
     {
-        private readonly ApiService _api;
-        private Guid _contractId;
+        // --- Зависимости ---
+        private readonly IApiService _api;
+        private readonly IViewManager _viewManager;
 
-        // Свойства для отображения:
-        public string Title { get; private set; } = "";
-        public string Status { get; private set; } = "";
-        public string BudgetInfo { get; private set; } = "";
-        public string CostPerHourInfo { get; private set; } = "";
-        public string RemainingBudgetInfo { get; private set; } = "";
+        // --- Свойства для привязки ---
+        private ContractEntity? _contract;
+        public ContractEntity? Contract
+        {
+            get => _contract;
+            private set => this.RaiseAndSetIfChanged(ref _contract, value);
+        }
 
-        public ObservableCollection<WorkSessionDto> WorkSessions { get; } = new();
+        public ObservableCollection<WorkSessionViewModel> WorkSessions { get; } = new();
 
         private string _comment = "";
         public string Comment
@@ -31,69 +34,121 @@ namespace FlsurfDesktop.ViewModels
             set => this.RaiseAndSetIfChanged(ref _comment, value);
         }
 
-        public ReactiveCommand<Guid, Unit> ViewSessionDetailCommand { get; }
+        private bool _isLoading = true;
+        public bool IsLoading
+        {
+            get => _isLoading;
+            private set => this.RaiseAndSetIfChanged(ref _isLoading, value);
+        }
+
+        private string _errorMessage = string.Empty;
+        public string ErrorMessage
+        {
+            get => _errorMessage;
+            private set => this.RaiseAndSetIfChanged(ref _errorMessage, value);
+        }
+
+        public bool CanSubmitSession => WorkSessions.Any() && WorkSessions.Last().Status == "Pending";
+
+        // --- Команды ---
+        public ReactiveCommand<Guid, Unit> LoadDataCommand { get; }
+        public ReactiveCommand<WorkSessionViewModel, Unit> ViewSessionDetailCommand { get; }
         public ReactiveCommand<Unit, Unit> SubmitSessionCommand { get; }
         public ReactiveCommand<Unit, Unit> CloseCommand { get; }
 
-        public bool CanSubmitSession => WorkSessions != null && WorkSessions.Count > 0 && WorkSessions[^1].Status == "Pending";
-
+        // Делегат для закрытия окна. Устанавливается из code-behind.
         public Action? CloseWindow { get; set; }
 
-        public ContractDetailViewModel(Guid contractId)
+        public ContractDetailViewModel(IApiService api, IViewManager viewManager)
         {
-            _contractId = contractId;
-            _api = App.Services.GetRequiredService<ApiService>();
+            _api = api;
+            _viewManager = viewManager;
 
-            ViewSessionDetailCommand = ReactiveCommand.CreateFromTask<Guid>(ViewSessionDetailAsync);
-            SubmitSessionCommand = ReactiveCommand.CreateFromTask(SubmitSessionAsync);
+            // Команда для загрузки всех данных
+            LoadDataCommand = ReactiveCommand.CreateFromTask<Guid>(LoadContractAndSessionsAsync);
+
+            // Подписка на результат загрузки
+            LoadDataCommand.Subscribe(contractId =>
+            {
+                this.RaisePropertyChanged(nameof(CanSubmitSession));
+            });
+
+            // Обработка ошибок
+            LoadDataCommand.ThrownExceptions.Subscribe(ex => ErrorMessage = $"Failed to load data: {ex.Message}");
+            LoadDataCommand.IsExecuting.BindTo(this, x => x.IsLoading);
+
+            // Команда для просмотра деталей сессии
+            ViewSessionDetailCommand = ReactiveCommand.Create<WorkSessionViewModel>(session =>
+            {
+                // Делегируем открытие окна ViewManager'у
+                _viewManager.ShowSessionDetailWindow(session.Id);
+            });
+
+            // Команда для отправки сессии
+            var canSubmit = this.WhenAnyValue(x => x.CanSubmitSession);
+            SubmitSessionCommand = ReactiveCommand.CreateFromTask(SubmitSessionAsync, canSubmit);
+
             CloseCommand = ReactiveCommand.Create(() => CloseWindow?.Invoke());
-
-            // Загружаем детали контракта
-            _ = LoadContractDetailAsync();
         }
 
-        private async Task LoadContractDetailAsync()
+        // Асинхронный метод для инициализации
+        public async Task InitializeAsync(Guid contractId)
         {
-            var detail = await _api.Client.GetContract(_contractId);
-            Title = detail.Job.Title;
-            Status = detail.Status.ToString();
-            BudgetInfo = $"Budget: {detail.Budget.Amount:C}";
-            CostPerHourInfo = $"Rate: {detail.CostPerHour.Amount:C}/hr";
-            RemainingBudgetInfo = $"Remaining: {detail.RemainingBudget?.Amount:C}";
+            await LoadDataCommand.Execute(contractId);
+        }
 
-            this.RaisePropertyChanged(nameof(Title));
-            this.RaisePropertyChanged(nameof(Status));
-            this.RaisePropertyChanged(nameof(BudgetInfo));
-            this.RaisePropertyChanged(nameof(CostPerHourInfo));
-            this.RaisePropertyChanged(nameof(RemainingBudgetInfo));
+        private async Task<Guid> LoadContractAndSessionsAsync(Guid contractId)
+        {
+            // Загружаем детали контракта
+            Contract = await _api.GetContractAsync(contractId);
 
-            // Загрузка WorkSessions
+            // Загружаем рабочие сессии
             WorkSessions.Clear();
-            var sessions = await _api.Client.GetSessionList(new GetWorkSessionListQuery { ContractId = _contractId });
+            var sessions = await _api.GetSessionListAsync(new GetWorkSessionListQuery { ContractId = contractId });
             foreach (var s in sessions)
             {
-                WorkSessions.Add(new WorkSessionDto(s.Id, s.StartDate, s.EndDate, s.Status.ToString()));
+                WorkSessions.Add(new WorkSessionViewModel(s));
             }
-            this.RaisePropertyChanged(nameof(WorkSessions));
-        }
 
-        private async Task ViewSessionDetailAsync(Guid sessionId)
-        {
-            var vm = new SessionDetailViewModel(sessionId);
-            var view = new Views.SessionDetailView { DataContext = vm };
-            view.ShowDialog(App.Current.MainWindow);
+            return contractId;
         }
 
         private async Task SubmitSessionAsync()
         {
-            // Посылаем комментарий и помечаем последнюю рабочую сессию как «Submitted»
-            var pending = WorkSessions[^1];
-            await _api.Client.SubmitSession(new SubmitWorkSessionCommand
+            if (!CanSubmitSession) return;
+
+            var pendingSession = WorkSessions.Last();
+
+            // ВАШ API (Client.cs) не имеет метода SubmitSession с комментарием.
+            // Используем тот, что есть.
+            await _api.SubmitSessionAsync(new SubmitWorkSessionCommand
             {
-                SessionId = pending.Id,
-                Comment = Comment
+                SessionId = pendingSession.Id,
+                // Comment = this.Comment // Это поле нужно добавить в SubmitWorkSessionCommand на бэкенде
             });
+
             CloseWindow?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Вспомогательная ViewModel для одного элемента списка рабочих сессий.
+    /// </summary>
+    public class WorkSessionViewModel : ReactiveObject
+    {
+        public Guid Id { get; }
+        public string Status { get; }
+        public string DateInfo { get; }
+        public string Duration { get; }
+
+        public WorkSessionViewModel(WorkSessionEntity session)
+        {
+            Id = session.Id;
+            Status = session.Status.ToString();
+            DateInfo = $"Started: {session.StartDate.ToLocalTime():g}";
+
+            var duration = (session.EndDate ?? DateTimeOffset.Now) - session.StartDate;
+            Duration = $"Duration: {duration:h\\'h'\\ mm\\'m'}";
         }
     }
 }

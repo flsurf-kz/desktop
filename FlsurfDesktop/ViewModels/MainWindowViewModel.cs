@@ -1,106 +1,96 @@
-﻿using ReactiveUI;
+﻿using Avalonia.Controls;
+using FlsurfDesktop.Core.Services;
+using FlsurfDesktop.Services; // Наш сервис для управления окнами
+using FlsurfDesktop.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
+using ReactiveUI;
 using System;
 using System.Reactive;
-using System.Threading.Tasks;
-using FlsurfDesktop.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
-using FlsurfDesktop.Views;
 
 namespace FlsurfDesktop.ViewModels
 {
     public class MainWindowViewModel : ReactiveObject
     {
+        // --- Зависимости, полученные через DI ---
         private readonly AuthService _authService;
-        private object _currentView = new object();
+        private readonly IViewManager _viewManager;
+        private readonly IServiceProvider _serviceProvider; // Используется как "фабрика" для ViewModel'ей
 
-        public object CurrentView
+        // --- Свойства для привязки к View ---
+        private ReactiveObject? _currentView;
+
+        /// <summary>
+        /// Текущая ViewModel, которая будет отображаться в основной части окна.
+        /// </summary>
+        public ReactiveObject? CurrentView
         {
             get => _currentView;
             private set => this.RaiseAndSetIfChanged(ref _currentView, value);
         }
 
-        public bool IsFreelancer { get; private set; }
-        public bool IsClient { get; private set; }
+        public string CurrentUserName { get; }
+        public string UserRole { get; }
+        public bool IsFreelancer { get; }
 
-        public ReactiveCommand<Unit, Unit> ShowFreelancerDashboardCommand { get; }
-        public ReactiveCommand<Unit, Unit> ShowClientDashboardCommand { get; }
+        // --- Команды ---
+        public ReactiveCommand<Unit, Unit> ShowDashboardCommand { get; }
         public ReactiveCommand<Unit, Unit> ShowNotificationsCommand { get; }
         public ReactiveCommand<Unit, Unit> OpenSettingsCommand { get; }
         public ReactiveCommand<Unit, Unit> LogoutCommand { get; }
-        public ReactiveCommand<Unit, Unit> ExitCommand { get; }
-        public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
-        public ReactiveCommand<Unit, Unit> StartSessionCommand { get; }
-        public ReactiveCommand<Unit, Unit> StopSessionCommand { get; }
 
-        public MainWindowViewModel()
+        // --- Конструктор ---
+        public MainWindowViewModel(
+            AuthService authService,
+            IViewManager viewManager,
+            IServiceProvider serviceProvider)
         {
-            _authService = App.Services.GetRequiredService<AuthService>();
+            _authService = authService;
+            _viewManager = viewManager;
+            _serviceProvider = serviceProvider;
 
-            ShowFreelancerDashboardCommand = ReactiveCommand.Create(ShowFreelancerDashboard);
-            ShowClientDashboardCommand = ReactiveCommand.Create(ShowClientDashboard);
-            ShowNotificationsCommand = ReactiveCommand.Create(ShowNotifications);
-            OpenSettingsCommand = ReactiveCommand.Create(OpenSettings);
-            LogoutCommand = ReactiveCommand.CreateFromTask(LogoutAsync);
-            ExitCommand = ReactiveCommand.Create(() => Environment.Exit(0));
-            ShowWindowCommand = ReactiveCommand.Create(() =>
-            {
-                if (App.Current.MainWindow.WindowState == Avalonia.Controls.WindowState.Minimized)
-                    App.Current.MainWindow.WindowState = Avalonia.Controls.WindowState.Normal;
-                App.Current.MainWindow.Activate();
-            });
-
-            StartSessionCommand = ReactiveCommand.CreateFromTask(() =>
-                App.Services.GetRequiredService<SessionService>().StartSessionAsync());
-            StopSessionCommand = ReactiveCommand.CreateFromTask(() =>
-                App.Services.GetRequiredService<SessionService>().StopSessionAsync());
-
-            // Определяем роль при старте MainWindow (AuthService уже хранит профиль)
+            // Инициализация свойств на основе залогиненного пользователя
             var profile = _authService.CurrentUserProfile;
-            IsFreelancer = profile != null && profile.Type == "Freelancer";
-            IsClient = profile != null && profile.Type == "Client";
+            CurrentUserName = profile?.FullName ?? "Unknown User";
+            UserRole = profile?.Type ?? "Unknown";
+            IsFreelancer = UserRole == "Freelancer";
 
-            // По умолчанию сразу показываем нужный Dashboard
+            // Настройка команд
+            ShowDashboardCommand = ReactiveCommand.Create(ShowDashboard);
+            ShowNotificationsCommand = ReactiveCommand.Create(ShowNotifications);
+            OpenSettingsCommand = ReactiveCommand.Create(_viewManager.ShowSettingsWindow);
+            LogoutCommand = ReactiveCommand.Create(Logout);
+
+            // Показываем дашборд по умолчанию при входе
+            ShowDashboard();
+        }
+
+        // --- Логика команд ---
+
+        private void ShowDashboard()
+        {
+            // Вместо создания View, мы создаем нужную ViewModel через DI
+            // и устанавливаем ее как текущую. View подберется автоматически через DataTemplate.
             if (IsFreelancer)
-                CurrentView = new FreelancerDashboardView { DataContext = new FreelancerDashboardViewModel() };
-            else if (IsClient)
-                CurrentView = new ClientDashboardView { DataContext = new ClientDashboardViewModel() };
+            {
+                CurrentView = _serviceProvider.GetRequiredService<FreelancerDashboardViewModel>();
+            }
             else
-                CurrentView = new object(); // или пустая заглушка
-
-            // Запустим загрузку уведомлений сразу
-            _ = Task.Run(() => ShowNotifications());
-        }
-
-        private void ShowFreelancerDashboard()
-        {
-            CurrentView = new FreelancerDashboardView { DataContext = new FreelancerDashboardViewModel() };
-        }
-
-        private void ShowClientDashboard()
-        {
-            CurrentView = new ClientDashboardView { DataContext = new ClientDashboardViewModel() };
+            {
+                CurrentView = _serviceProvider.GetRequiredService<ClientDashboardViewModel>();
+            }
         }
 
         private void ShowNotifications()
         {
-            CurrentView = new NotificationsView { DataContext = new NotificationsViewModel() };
+            CurrentView = _serviceProvider.GetRequiredService<NotificationsViewModel>();
         }
 
-        private void OpenSettings()
+        private void Logout()
         {
-            var win = new SettingsWindow { DataContext = new SettingsWindowViewModel() };
-            win.ShowDialog(App.Current.MainWindow);
-        }
-
-        private async Task LogoutAsync()
-        {
-            await _authService.LogoutAsync();
-            // После логаута закрываем всё и возвращаемся в LoginWindow
-            App.Current.MainWindow.Close();
-            var login = new Views.LoginWindow { DataContext = new LoginWindowViewModel() };
-            if (login.DataContext is LoginWindowViewModel vm)
-                vm.CloseWindow = () => login.Close();
-            login.Show();
+            // ViewModel больше не управляет окнами.
+            // Она просто выполняет свою часть работы и делегирует UI-логику ViewManager'у.
+            _authService.LogoutAsync();
+            _viewManager.RestartApplication();
         }
     }
 }

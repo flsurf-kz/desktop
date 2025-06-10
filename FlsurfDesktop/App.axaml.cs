@@ -13,7 +13,7 @@ public partial class App : Application
 {
     // 1. Создаём статическое свойство для хранения сервисов.
     // Оно должно быть public, чтобы ViewModel мог к нему обратиться.
-    public static IServiceProvider Services { get; private set; }
+    public static IServiceProvider Services { get; set; }
 
     public override void Initialize()
     {

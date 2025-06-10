@@ -1,6 +1,6 @@
 ﻿namespace FlsurfDesktop.Platform;
 
-public class Class1
+public interface IScreenCaptureService
 {
-
+    Task<byte[]> CapturePrimaryScreenAsync();
 }
